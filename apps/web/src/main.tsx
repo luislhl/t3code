@@ -85,3 +85,6 @@ export const startup = Promise.all([
     if (reloadScheduled) return;
     throw error;
   });
+
+// Fork patch: warns when this fork's upstream sync fails. Inert in other builds.
+void import("./components/forkSync.toast").then((module) => module.watchForkSync());
