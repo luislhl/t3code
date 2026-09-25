@@ -48,6 +48,16 @@ Set **Auto-compact after** in the Claude provider settings to an integer between
 300,000 tokens. This changes when compaction happens, not the model's context
 window. Leave it empty for Claude Code's default.
 
+Claude caches the conversation for 1 hour on a subscription, or 5 minutes with an
+API key or usage credits. When you return to a thread after the cache expires, the
+next message re-sends the whole conversation at full cost. Set **Compact when idle
+for** to compact threads after that many minutes without activity, while the cache
+is still warm. Pick a value below your cache lifetime, such as `25` on a
+subscription or `3` with an API key. T3 Code stops idle Claude sessions after 30
+minutes, so the setting allows 1 to 29. Set **Idle compaction minimum**, such as
+`100000`, to skip threads that are still small. Idle compaction appears in the
+thread as a `/compact` message.
+
 You can also send `/compact` in an existing conversation. Web and desktop offer
 **Compact context** from the context meter and may suggest it when you return to
 a large older thread. See [commands and skills](./composer.md#commands-and-skills)

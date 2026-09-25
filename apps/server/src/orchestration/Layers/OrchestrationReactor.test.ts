@@ -10,6 +10,7 @@ import { ProviderCommandReactor } from "../Services/ProviderCommandReactor.ts";
 import { ProviderRuntimeIngestionService } from "../Services/ProviderRuntimeIngestion.ts";
 import { ThreadDeletionReactor } from "../Services/ThreadDeletionReactor.ts";
 import * as ThreadSettlementReactor from "../ThreadSettlementReactor.ts";
+import * as IdleCompactionReactor from "../IdleCompactionReactor.ts";
 import * as PullRequestSyncReactor from "../PullRequestSyncReactor.ts";
 import * as ThreadPullRequestReactor from "../ThreadPullRequestReactor.ts";
 import { OrchestrationReactor } from "../Services/OrchestrationReactor.ts";
@@ -96,6 +97,15 @@ describe("OrchestrationReactor", () => {
           }),
         ),
         Layer.provideMerge(
+          Layer.succeed(IdleCompactionReactor.IdleCompactionReactor, {
+            start: () => {
+              started.push("idle-compaction-reactor");
+              return Effect.void;
+            },
+            sweep: Effect.void,
+          }),
+        ),
+        Layer.provideMerge(
           Layer.succeed(PullRequestSyncReactor.PullRequestSyncReactor, {
             start: () => {
               started.push("pull-request-sync-reactor");
@@ -129,6 +139,7 @@ describe("OrchestrationReactor", () => {
       "thread-deletion-reactor",
       "thread-pull-request-reactor",
       "thread-settlement-reactor",
+      "idle-compaction-reactor",
       "pull-request-sync-reactor",
       "agent-awareness-relay",
       "storage-cleanup",

@@ -221,6 +221,43 @@ describe("ClaudeSettings auto-compaction", () => {
   });
 });
 
+describe("ClaudeSettings idle compaction", () => {
+  it("is off unless an idle time is configured", () => {
+    const settings = decodeClaudeSettings({});
+    expect(settings.idleCompactAfterMinutes).toBe("");
+    expect(settings.idleCompactMinTokens).toBe("");
+  });
+
+  it.each([
+    ["1", "1000"],
+    ["25", "100000"],
+    ["29", "1000000"],
+  ])("accepts %s idle minutes with a %s token minimum", (minutes, tokens) => {
+    const settings = decodeClaudeSettings({
+      idleCompactAfterMinutes: minutes,
+      idleCompactMinTokens: tokens,
+    });
+    expect(settings.idleCompactAfterMinutes).toBe(minutes);
+    expect(settings.idleCompactMinTokens).toBe(tokens);
+  });
+
+  // 30 minutes and up would land after the session reaper already stopped the
+  // session, so the compaction would re-read the whole conversation uncached.
+  it.each(["0", "30", "60", "5m"])("rejects an unsupported idle time: %s", (value) => {
+    expect(() => decodeClaudeSettings({ idleCompactAfterMinutes: value })).toThrow();
+    expect(() =>
+      decodeServerSettingsPatch({ providers: { claudeAgent: { idleCompactAfterMinutes: value } } }),
+    ).toThrow();
+  });
+
+  it.each(["999", "1000001", "100k"])("rejects an unsupported token minimum: %s", (value) => {
+    expect(() => decodeClaudeSettings({ idleCompactMinTokens: value })).toThrow();
+    expect(() =>
+      decodeServerSettingsPatch({ providers: { claudeAgent: { idleCompactMinTokens: value } } }),
+    ).toThrow();
+  });
+});
+
 describe("ClientSettings notifications", () => {
   it("requires opt-in when existing settings omit notification preferences", () => {
     expect(decodeClientSettings({}).notificationMode).toBe("off");

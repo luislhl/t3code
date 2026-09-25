@@ -641,6 +641,12 @@ export type CodexSettings = typeof CodexSettings.Type;
 // Claude settings schema and its patch so an out-of-range value fails at
 // the update that introduced it.
 const CLAUDE_AUTO_COMPACT_WINDOW_PATTERN = /^(?:|[1-9]\d{5}|1000000)$/;
+// Empty, or 1 to 29 minutes. Idle compaction only saves anything while the
+// provider session is alive, and the session reaper stops idle sessions
+// after 30 minutes.
+const CLAUDE_IDLE_COMPACT_MINUTES_PATTERN = /^(?:|[1-9]|[12]\d)$/;
+// Empty, or an integer from 1,000 to 1,000,000.
+const CLAUDE_IDLE_COMPACT_MIN_TOKENS_PATTERN = /^(?:|[1-9]\d{3,5}|1000000)$/;
 
 export const ClaudeSettings = makeProviderSettingsSchema(
   {
@@ -693,9 +699,44 @@ export const ClaudeSettings = makeProviderSettingsSchema(
         },
       }),
     ),
+    idleCompactAfterMinutes: TrimmedString.check(
+      Schema.isPattern(CLAUDE_IDLE_COMPACT_MINUTES_PATTERN),
+    ).pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Compact when idle for",
+        description:
+          "Minutes (1 to 29) without activity before compacting, while Claude's prompt cache is still warm. Leave empty to turn off.",
+        providerSettingsForm: {
+          placeholder: "e.g. 25",
+          clearWhenEmpty: "omit",
+        },
+      }),
+    ),
+    idleCompactMinTokens: TrimmedString.check(
+      Schema.isPattern(CLAUDE_IDLE_COMPACT_MIN_TOKENS_PATTERN),
+    ).pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Idle compaction minimum",
+        description:
+          "Only compact idle threads using at least this many tokens (1,000 to 1,000,000). Leave empty to compact any idle thread.",
+        providerSettingsForm: {
+          placeholder: "e.g. 100000",
+          clearWhenEmpty: "omit",
+        },
+      }),
+    ),
   },
   {
-    order: ["binaryPath", "homePath", "autoCompactWindow", "launchArgs"],
+    order: [
+      "binaryPath",
+      "homePath",
+      "autoCompactWindow",
+      "idleCompactAfterMinutes",
+      "idleCompactMinTokens",
+      "launchArgs",
+    ],
   },
 );
 export type ClaudeSettings = typeof ClaudeSettings.Type;
@@ -1433,6 +1474,12 @@ const ClaudeSettingsPatch = Schema.Struct({
   // schema error instead of a generic whole-settings failure.
   autoCompactWindow: Schema.optionalKey(
     TrimmedString.check(Schema.isPattern(CLAUDE_AUTO_COMPACT_WINDOW_PATTERN)),
+  ),
+  idleCompactAfterMinutes: Schema.optionalKey(
+    TrimmedString.check(Schema.isPattern(CLAUDE_IDLE_COMPACT_MINUTES_PATTERN)),
+  ),
+  idleCompactMinTokens: Schema.optionalKey(
+    TrimmedString.check(Schema.isPattern(CLAUDE_IDLE_COMPACT_MIN_TOKENS_PATTERN)),
   ),
 });
 

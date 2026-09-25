@@ -570,6 +570,30 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
+  it.effect("declares idle compaction only when an idle time is configured", () =>
+    Effect.gen(function* () {
+      const off = makeHarness({ claudeConfig: { idleCompactMinTokens: "100000" } });
+      const offAdapter = yield* ClaudeAdapter.pipe(Effect.provide(off.layer));
+      assert.equal(offAdapter.capabilities.idleCompaction, undefined);
+
+      const timeOnly = makeHarness({ claudeConfig: { idleCompactAfterMinutes: "4" } });
+      const timeOnlyAdapter = yield* ClaudeAdapter.pipe(Effect.provide(timeOnly.layer));
+      assert.deepEqual(timeOnlyAdapter.capabilities.idleCompaction, {
+        idleMs: 4 * 60_000,
+        minTokens: 0,
+      });
+
+      const gated = makeHarness({
+        claudeConfig: { idleCompactAfterMinutes: "25", idleCompactMinTokens: "100000" },
+      });
+      const gatedAdapter = yield* ClaudeAdapter.pipe(Effect.provide(gated.layer));
+      assert.deepEqual(gatedAdapter.capabilities.idleCompaction, {
+        idleMs: 25 * 60_000,
+        minTokens: 100_000,
+      });
+    }).pipe(Effect.provideService(Random.Random, makeDeterministicRandomService())),
+  );
+
   it.effect("forwards claude effort levels into query options", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {

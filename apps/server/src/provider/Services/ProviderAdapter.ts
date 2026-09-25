@@ -52,6 +52,16 @@ export interface ProviderAdapterCapabilities {
   readonly promptlessTurnContinuation?: boolean;
   /** False when native conversation history cannot be rewound. */
   readonly supportsConversationRollback?: boolean;
+  /**
+   * Compact threads left idle this long, while the provider's prompt cache is
+   * still warm, so a later message does not re-send the full history
+   * uncached. Omitted when idle compaction is off.
+   */
+  readonly idleCompaction?: {
+    readonly idleMs: number;
+    /** Skip threads whose context is smaller than this. */
+    readonly minTokens: number;
+  };
 }
 
 export interface ProviderThreadTurnSnapshot {

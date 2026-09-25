@@ -5664,6 +5664,14 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     provider: PROVIDER,
     capabilities: {
       sessionModelSwitch: "in-session",
+      ...(claudeSettings.idleCompactAfterMinutes
+        ? {
+            idleCompaction: {
+              idleMs: Number(claudeSettings.idleCompactAfterMinutes) * 60_000,
+              minTokens: Number(claudeSettings.idleCompactMinTokens || 0),
+            },
+          }
+        : {}),
     },
     compaction: { type: "slash-command", command: "/compact" },
     startSession,

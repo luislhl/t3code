@@ -66,6 +66,8 @@ describe("ProviderSettingsForm helpers", () => {
       "binaryPath",
       "homePath",
       "autoCompactWindow",
+      "idleCompactAfterMinutes",
+      "idleCompactMinTokens",
       "launchArgs",
     ]);
   });
