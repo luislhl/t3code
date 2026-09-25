@@ -1,0 +1,257 @@
+name: Fork sync
+
+# Moves this fork's patches onto each new upstream stable release and publishes
+# a Linux AppImage for it. See docs/how-it-works.md.
+#
+# Fork builds of the desktop app read this workflow's latest run through the
+# GitHub API and warn when it failed, so keep the file name `fork-sync.yml`.
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Upstream stable tag to sync to, e.g. v0.0.42. Empty uses the latest stable release."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-sync
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPOSITORY: pingdotgg/t3code
+  PATCH_BRANCH: fork/patches
+
+jobs:
+  sync:
+    name: Rebase patches onto the latest upstream release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      release_tag: ${{ steps.target.outputs.tag }}
+      build: ${{ steps.target.outputs.build }}
+      patches_sha: ${{ steps.push.outputs.sha }}
+    steps:
+      - name: Pick the upstream release
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="${REQUESTED_TAG:-$(gh release view --repo "$UPSTREAM_REPOSITORY" --json tagName --jq .tagName)}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "This fork already released $tag."
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "Syncing to upstream $tag."
+          fi
+
+      # Plain git instead of actions/checkout: `.repos/` holds large vendored
+      # references the build never reads, so it stays out of the checkout.
+      - name: Check out patches and upstream tags
+        env:
+          FORK_SYNC_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FORK_SYNC_TOKEN" ]]; then
+            echo "::error::Missing the FORK_SYNC_TOKEN secret. See docs/how-it-works.md#one-time-setup"
+            exit 1
+          fi
+          git init -q .
+          git config user.name "fork-sync"
+          git config user.email "fork-sync@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${FORK_SYNC_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
+          git fetch -q --no-tags --filter=blob:none origin "$PATCH_BRANCH"
+          git fetch -q --no-tags --filter=blob:none upstream 'refs/tags/v*:refs/tags/v*'
+          git sparse-checkout set --no-cone '/*' '!/.repos/'
+          git checkout -q -B patches "origin/$PATCH_BRANCH"
+
+      - name: Rebase onto the release
+        id: rebase
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Stable tags only; nightly and preview tags carry a `-` suffix.
+          base="$(git describe --tags --abbrev=0 --exclude '*-*' HEAD)"
+          if [[ "$base" == "$TAG" ]]; then
+            echo "Patches already sit on $TAG."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Moving patches from $base to $TAG:"
+          git log --oneline "$base..HEAD"
+          if ! git rebase --onto "$TAG" "$base"; then
+            git status --short | sed 's/^/  /'
+            git rebase --abort
+            echo "::error::$PATCH_BRANCH does not apply to $TAG. Rebase it by hand: docs/how-it-works.md#when-the-sync-fails"
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Vite+
+        if: steps.rebase.outputs.changed == 'true'
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: false
+
+      # Only the packages the patches touch: their typecheck catches upstream
+      # API changes that rebase cleanly, their changed tests catch behavior drift.
+      - name: Check patched packages
+        if: steps.rebase.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git diff --name-only "$TAG...HEAD")
+          declare -A packages=()
+          for file in "${files[@]}"; do
+            if [[ "$file" =~ ^(apps|packages)/[^/]+/ ]]; then
+              package="${BASH_REMATCH[0]%/}"
+              [[ -f "$package/package.json" ]] && packages["$package"]=1
+            fi
+          done
+          if (( ${#packages[@]} == 0 )); then
+            echo "No workspace packages patched."
+            exit 0
+          fi
+          # Typecheck also covers the root scripts some packages import.
+          filters=(--filter=@t3tools/scripts...)
+          for package in "${!packages[@]}"; do
+            filters+=("--filter=$(jq -r .name "$package/package.json")...")
+          done
+          vp install "${filters[@]}"
+          for package in "${!packages[@]}"; do
+            echo "::group::$package"
+            (cd "$package" && vp run typecheck)
+            tests=()
+            for file in "${files[@]}"; do
+              if [[ "$file" == "$package/"* && "$file" =~ \.test\.tsx?$ && -f "$file" ]]; then
+                tests+=("${file#"$package/"}")
+              fi
+            done
+            if (( ${#tests[@]} > 0 )); then
+              (cd "$package" && vp test run "${tests[@]}")
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: Push rebased patches
+        id: push
+        run: |
+          set -euo pipefail
+          previous="$(git rev-parse "origin/$PATCH_BRANCH")"
+          if [[ "$(git rev-parse HEAD)" != "$previous" ]]; then
+            # The lease refuses to overwrite a fix pushed while this job ran.
+            git push --force-with-lease="refs/heads/$PATCH_BRANCH:$previous" origin "HEAD:refs/heads/$PATCH_BRANCH"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Release ${{ needs.sync.outputs.release_tag }}
+    needs: sync
+    if: needs.sync.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      RELEASE_TAG: ${{ needs.sync.outputs.release_tag }}
+      PATCHES_SHA: ${{ needs.sync.outputs.patches_sha }}
+      # Bakes this fork into the app's update feed (app-update.yml).
+      T3CODE_DESKTOP_UPDATE_REPOSITORY: ${{ github.repository }}
+      # Turns on the sidebar warning when this workflow fails.
+      VITE_T3CODE_FORK_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Check out the patched release
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
+          git fetch -q --no-tags --filter=blob:none origin "$PATCH_BRANCH"
+          git fetch -q --no-tags --filter=blob:none upstream "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          if [[ "$(git rev-parse "origin/$PATCH_BRANCH")" != "$PATCHES_SHA" ]]; then
+            echo "::error::$PATCH_BRANCH moved after the sync job. Run the workflow again."
+            exit 1
+          fi
+          git sparse-checkout set --no-cone '/*' '!/.repos/'
+          git checkout -q --detach "$PATCHES_SHA"
+          git log --format='- %s' "$RELEASE_TAG..HEAD" > "$RUNNER_TEMP/patches.md"
+          cat "$RUNNER_TEMP/patches.md"
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: false
+
+      - name: Install dependencies
+        run: vp install --filter=t3... --filter=@t3tools/web... --filter=@t3tools/desktop... --filter=@t3tools/scripts...
+
+      - name: Install Linux build libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev pkg-config imagemagick
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Align package versions to the release
+        run: node scripts/update-release-package-versions.ts "${RELEASE_TAG#v}"
+
+      - name: Build JS bundle
+        run: vp run build:desktop
+
+      - name: Build AppImage
+        run: |
+          vp run dist:desktop:artifact \
+            --platform linux --target AppImage --arch x64 \
+            --build-version "${RELEASE_TAG#v}" --skip-build --verbose
+
+      - name: Verify the update feed points at this fork
+        run: |
+          set -euo pipefail
+          test -f release/latest-linux.yml
+          appimage="$(ls "$GITHUB_WORKSPACE"/release/*.AppImage)"
+          chmod +x "$appimage"
+          (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract resources/app-update.yml >/dev/null)
+          feed="$RUNNER_TEMP/squashfs-root/resources/app-update.yml"
+          cat "$feed"
+          grep -qx "owner: ${GITHUB_REPOSITORY%%/*}" "$feed"
+          grep -qx "repo: ${GITHUB_REPOSITORY#*/}" "$feed"
+
+      - name: Write release notes
+        run: |
+          {
+            echo "Upstream [$RELEASE_TAG](https://github.com/${UPSTREAM_REPOSITORY}/releases/tag/$RELEASE_TAG) with this fork's patches:"
+            echo
+            cat "$RUNNER_TEMP/patches.md"
+            echo
+            echo "Linux x64 AppImage only. See the [README](https://github.com/${GITHUB_REPOSITORY}#readme) for what this fork is."
+          } > "$RUNNER_TEMP/notes.md"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: T3 Code ${{ env.RELEASE_TAG }} (fork)
+          body_path: ${{ runner.temp }}/notes.md
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: |
+            release/*.AppImage
+            release/latest-linux.yml
