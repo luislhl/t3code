@@ -231,7 +231,7 @@ describe("ClaudeSettings idle compaction", () => {
   it.each([
     ["1", "1000"],
     ["25", "100000"],
-    ["29", "1000000"],
+    ["239", "1000000"],
   ])("accepts %s idle minutes with a %s token minimum", (minutes, tokens) => {
     const settings = decodeClaudeSettings({
       idleCompactAfterMinutes: minutes,
@@ -241,9 +241,7 @@ describe("ClaudeSettings idle compaction", () => {
     expect(settings.idleCompactMinTokens).toBe(tokens);
   });
 
-  // 30 minutes and up would land after the session reaper already stopped the
-  // session, so the compaction would re-read the whole conversation uncached.
-  it.each(["0", "30", "60", "5m"])("rejects an unsupported idle time: %s", (value) => {
+  it.each(["0", "240", "5m"])("rejects an unsupported idle time: %s", (value) => {
     expect(() => decodeClaudeSettings({ idleCompactAfterMinutes: value })).toThrow();
     expect(() =>
       decodeServerSettingsPatch({ providers: { claudeAgent: { idleCompactAfterMinutes: value } } }),
@@ -254,6 +252,27 @@ describe("ClaudeSettings idle compaction", () => {
     expect(() => decodeClaudeSettings({ idleCompactMinTokens: value })).toThrow();
     expect(() =>
       decodeServerSettingsPatch({ providers: { claudeAgent: { idleCompactMinTokens: value } } }),
+    ).toThrow();
+  });
+});
+
+describe("ClaudeSettings idle session stop time", () => {
+  it("uses the default unless configured", () => {
+    expect(decodeClaudeSettings({}).stopIdleSessionAfterMinutes).toBe("");
+  });
+
+  it.each(["10", "65", "240"])("accepts %s minutes", (value) => {
+    expect(
+      decodeClaudeSettings({ stopIdleSessionAfterMinutes: value }).stopIdleSessionAfterMinutes,
+    ).toBe(value);
+  });
+
+  it.each(["0", "9", "241", "1h"])("rejects an unsupported stop time: %s", (value) => {
+    expect(() => decodeClaudeSettings({ stopIdleSessionAfterMinutes: value })).toThrow();
+    expect(() =>
+      decodeServerSettingsPatch({
+        providers: { claudeAgent: { stopIdleSessionAfterMinutes: value } },
+      }),
     ).toThrow();
   });
 });

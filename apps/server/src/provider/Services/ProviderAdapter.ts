@@ -27,6 +27,9 @@ import type * as Stream from "effect/Stream";
 
 export type ProviderSessionModelSwitchMode = "in-session" | "unsupported";
 
+/** How long the session reaper lets a session sit idle unless its adapter says otherwise. */
+export const DEFAULT_IDLE_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
 /**
  * How ProviderService runs manual context compaction for an adapter.
  * Native adapters expose a start call and must emit a compacted thread state
@@ -62,6 +65,11 @@ export interface ProviderAdapterCapabilities {
     /** Skip threads whose context is smaller than this. */
     readonly minTokens: number;
   };
+  /**
+   * How long a session may sit idle before the session reaper stops it.
+   * Omitted uses DEFAULT_IDLE_SESSION_TIMEOUT_MS.
+   */
+  readonly idleSessionTimeoutMs?: number;
 }
 
 export interface ProviderThreadTurnSnapshot {

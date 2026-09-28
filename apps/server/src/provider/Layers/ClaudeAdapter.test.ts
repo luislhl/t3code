@@ -594,6 +594,32 @@ describe("ClaudeAdapterLive", () => {
     }).pipe(Effect.provideService(Random.Random, makeDeterministicRandomService())),
   );
 
+  it.effect("keeps idle compaction below the idle session stop time", () =>
+    Effect.gen(function* () {
+      const longer = makeHarness({
+        claudeConfig: { idleCompactAfterMinutes: "55", stopIdleSessionAfterMinutes: "65" },
+      });
+      const longerAdapter = yield* ClaudeAdapter.pipe(Effect.provide(longer.layer));
+      assert.equal(longerAdapter.capabilities.idleSessionTimeoutMs, 65 * 60_000);
+      assert.deepEqual(longerAdapter.capabilities.idleCompaction, {
+        idleMs: 55 * 60_000,
+        minTokens: 0,
+      });
+
+      // The session would already be stopped, so compacting would read it all uncached.
+      const pastDefault = makeHarness({ claudeConfig: { idleCompactAfterMinutes: "45" } });
+      const pastDefaultAdapter = yield* ClaudeAdapter.pipe(Effect.provide(pastDefault.layer));
+      assert.equal(pastDefaultAdapter.capabilities.idleSessionTimeoutMs, undefined);
+      assert.equal(pastDefaultAdapter.capabilities.idleCompaction, undefined);
+
+      const pastStop = makeHarness({
+        claudeConfig: { idleCompactAfterMinutes: "20", stopIdleSessionAfterMinutes: "20" },
+      });
+      const pastStopAdapter = yield* ClaudeAdapter.pipe(Effect.provide(pastStop.layer));
+      assert.equal(pastStopAdapter.capabilities.idleCompaction, undefined);
+    }).pipe(Effect.provideService(Random.Random, makeDeterministicRandomService())),
+  );
+
   it.effect("forwards claude effort levels into query options", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {

@@ -121,6 +121,7 @@ const makeClaudeConfig = (overrides: Partial<ClaudeSettings>): ClaudeSettings =>
   autoCompactWindow: "",
   idleCompactAfterMinutes: "",
   idleCompactMinTokens: "",
+  stopIdleSessionAfterMinutes: "",
   ...overrides,
 });
 

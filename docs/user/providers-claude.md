@@ -53,10 +53,15 @@ API key or usage credits. When you return to a thread after the cache expires, t
 next message re-sends the whole conversation at full cost. Set **Compact when idle
 for** to compact threads after that many minutes without activity, while the cache
 is still warm. Pick a value below your cache lifetime, such as `25` on a
-subscription or `3` with an API key. T3 Code stops idle Claude sessions after 30
-minutes, so the setting allows 1 to 29. Set **Idle compaction minimum**, such as
+subscription or `3` with an API key. Set **Idle compaction minimum**, such as
 `100000`, to skip threads that are still small. Idle compaction appears in the
 thread as a `/compact` message.
+
+T3 Code stops a Claude process after 30 minutes without activity to free its
+memory, a few hundred MB each. Change this with **Stop idle sessions after**. Idle
+compaction needs the process running, so its time must be below the stop time;
+T3 Code ignores it otherwise. To use most of a subscription's 1-hour cache, set
+**Stop idle sessions after** to `65` and **Compact when idle for** to `55`.
 
 You can also send `/compact` in an existing conversation. Web and desktop offer
 **Compact context** from the context meter and may suggest it when you return to

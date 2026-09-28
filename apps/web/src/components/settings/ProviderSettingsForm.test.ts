@@ -68,6 +68,7 @@ describe("ProviderSettingsForm helpers", () => {
       "autoCompactWindow",
       "idleCompactAfterMinutes",
       "idleCompactMinTokens",
+      "stopIdleSessionAfterMinutes",
       "launchArgs",
     ]);
   });

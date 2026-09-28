@@ -21,6 +21,7 @@ import { ProjectionSnapshotQuery } from "../../orchestration/Services/Projection
 import { SqlitePersistenceMemory } from "../../persistence/Layers/Sqlite.ts";
 import * as ProviderSessionRuntime from "../../persistence/ProviderSessionRuntime.ts";
 import { ProviderValidationError } from "../Errors.ts";
+import type { ProviderAdapterCapabilities } from "../Services/ProviderAdapter.ts";
 import { ProviderSessionReaper } from "../Services/ProviderSessionReaper.ts";
 import { ProviderService, type ProviderServiceShape } from "../Services/ProviderService.ts";
 import { ProviderSessionDirectoryLive } from "./ProviderSessionDirectory.ts";
@@ -175,6 +176,7 @@ describe("ProviderSessionReaper", () => {
 
   async function createHarness(input: {
     readonly readModel: ReturnType<typeof makeReadModel>;
+    readonly capabilities?: ProviderAdapterCapabilities;
     readonly stopSessionImplementation?: (input: {
       readonly threadId: ThreadId;
     }) => ReturnType<ProviderServiceShape["stopSession"]>;
@@ -198,7 +200,8 @@ describe("ProviderSessionReaper", () => {
       respondToUserInput: () => unsupported(),
       stopSession,
       listSessions: () => Effect.succeed([]),
-      getCapabilities: () => Effect.succeed({ sessionModelSwitch: "in-session" }),
+      getCapabilities: () =>
+        Effect.succeed(input.capabilities ?? { sessionModelSwitch: "in-session" }),
       assertConversationRollbackSupported: () => unsupported(),
       getInstanceInfo: (instanceId) => {
         const driverKind = ProviderDriverKind.make(String(instanceId));
@@ -520,6 +523,38 @@ describe("ProviderSessionReaper", () => {
       expect(harness.stopSession).toHaveBeenCalledExactlyOnceWith({ threadId });
     },
   );
+
+  it("uses the idle session timeout its provider instance declares", async () => {
+    const threadId = ThreadId.make("thread-reaper-instance-timeout");
+    const now = "2026-04-14T01:00:00.000Z";
+    const nowMs = Date.parse(now);
+    const harness = await createHarness({
+      readModel: makeReadModel([{ id: threadId, session: null }]),
+      capabilities: { sessionModelSwitch: "in-session", idleSessionTimeoutMs: 5_000 },
+    });
+    const repository = await runtime!.runPromise(
+      Effect.service(ProviderSessionRuntime.ProviderSessionRuntimeRepository),
+    );
+    await runtime!.runPromise(
+      repository.upsert({
+        threadId,
+        providerName: "claudeAgent",
+        providerInstanceId: ProviderInstanceId.make("claudeAgent"),
+        adapterKey: "claudeAgent",
+        runtimeMode: "full-access",
+        status: "running",
+        lastSeenAt: now,
+        resumeCursor: { opaque: "resume-instance-timeout" },
+        runtimePayload: null,
+      }),
+    );
+
+    // The harness default of one second would already reap here.
+    await sweepAt(nowMs + 4_999);
+    expect(harness.stopSession).not.toHaveBeenCalled();
+    await sweepAt(nowMs + 5_000);
+    expect(harness.stopSession).toHaveBeenCalledExactlyOnceWith({ threadId });
+  });
 
   it("skips persisted sessions that are already marked stopped", async () => {
     const threadId = ThreadId.make("thread-reaper-stopped");

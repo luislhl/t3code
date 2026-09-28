@@ -641,10 +641,12 @@ export type CodexSettings = typeof CodexSettings.Type;
 // Claude settings schema and its patch so an out-of-range value fails at
 // the update that introduced it.
 const CLAUDE_AUTO_COMPACT_WINDOW_PATTERN = /^(?:|[1-9]\d{5}|1000000)$/;
-// Empty, or 1 to 29 minutes. Idle compaction only saves anything while the
-// provider session is alive, and the session reaper stops idle sessions
-// after 30 minutes.
-const CLAUDE_IDLE_COMPACT_MINUTES_PATTERN = /^(?:|[1-9]|[12]\d)$/;
+// Empty, or 1 to 239 minutes. Idle compaction only saves anything while the
+// provider session is alive, so the adapter ignores values at or above the
+// idle session stop time.
+const CLAUDE_IDLE_COMPACT_MINUTES_PATTERN = /^(?:|[1-9]|[1-9]\d|1\d\d|2[0-3]\d)$/;
+// Empty, or 10 to 240 minutes.
+const CLAUDE_STOP_IDLE_SESSION_MINUTES_PATTERN = /^(?:|[1-9]\d|1\d\d|2[0-3]\d|240)$/;
 // Empty, or an integer from 1,000 to 1,000,000.
 const CLAUDE_IDLE_COMPACT_MIN_TOKENS_PATTERN = /^(?:|[1-9]\d{3,5}|1000000)$/;
 
@@ -706,7 +708,7 @@ export const ClaudeSettings = makeProviderSettingsSchema(
       Schema.annotateKey({
         title: "Compact when idle for",
         description:
-          "Minutes (1 to 29) without activity before compacting, while Claude's prompt cache is still warm. Leave empty to turn off.",
+          "Minutes without activity before compacting, while Claude's prompt cache is still warm. Must be below Stop idle sessions after (30 by default). Leave empty to turn off.",
         providerSettingsForm: {
           placeholder: "e.g. 25",
           clearWhenEmpty: "omit",
@@ -727,6 +729,20 @@ export const ClaudeSettings = makeProviderSettingsSchema(
         },
       }),
     ),
+    stopIdleSessionAfterMinutes: TrimmedString.check(
+      Schema.isPattern(CLAUDE_STOP_IDLE_SESSION_MINUTES_PATTERN),
+    ).pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Stop idle sessions after",
+        description:
+          "Minutes (10 to 240) before an idle Claude process is stopped to free memory. The next message restarts it. Leave empty for 30.",
+        providerSettingsForm: {
+          placeholder: "e.g. 65",
+          clearWhenEmpty: "omit",
+        },
+      }),
+    ),
   },
   {
     order: [
@@ -735,6 +751,7 @@ export const ClaudeSettings = makeProviderSettingsSchema(
       "autoCompactWindow",
       "idleCompactAfterMinutes",
       "idleCompactMinTokens",
+      "stopIdleSessionAfterMinutes",
       "launchArgs",
     ],
   },
@@ -1480,6 +1497,9 @@ const ClaudeSettingsPatch = Schema.Struct({
   ),
   idleCompactMinTokens: Schema.optionalKey(
     TrimmedString.check(Schema.isPattern(CLAUDE_IDLE_COMPACT_MIN_TOKENS_PATTERN)),
+  ),
+  stopIdleSessionAfterMinutes: Schema.optionalKey(
+    TrimmedString.check(Schema.isPattern(CLAUDE_STOP_IDLE_SESSION_MINUTES_PATTERN)),
   ),
 });
 

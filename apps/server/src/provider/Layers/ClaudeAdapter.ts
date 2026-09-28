@@ -115,6 +115,7 @@ import {
   type ProviderAdapterError,
 } from "../Errors.ts";
 import { type ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
+import { DEFAULT_IDLE_SESSION_TIMEOUT_MS } from "../Services/ProviderAdapter.ts";
 import { spawnAndCollect } from "../providerSnapshot.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 const encodeUnknownJsonStringExit = Schema.encodeUnknownExit(Schema.fromJsonString(Schema.Unknown));
@@ -5660,18 +5661,39 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
     ),
   );
 
+  const idleSessionTimeoutMs = claudeSettings.stopIdleSessionAfterMinutes
+    ? Number(claudeSettings.stopIdleSessionAfterMinutes) * 60_000
+    : undefined;
+  const idleCompactionMs = claudeSettings.idleCompactAfterMinutes
+    ? Number(claudeSettings.idleCompactAfterMinutes) * 60_000
+    : undefined;
+  // Compacting after the reaper stopped the session would restart it and read
+  // the whole history uncached, which is the cost idle compaction avoids.
+  const idleCompactionFits =
+    idleCompactionMs !== undefined &&
+    idleCompactionMs < (idleSessionTimeoutMs ?? DEFAULT_IDLE_SESSION_TIMEOUT_MS);
+  if (idleCompactionMs !== undefined && !idleCompactionFits) {
+    yield* Effect.logWarning("claude.idle-compaction.ignored", {
+      instanceId: boundInstanceId,
+      reason: "idle compaction time is not below the idle session stop time",
+      idleCompactionMs,
+      idleSessionTimeoutMs: idleSessionTimeoutMs ?? DEFAULT_IDLE_SESSION_TIMEOUT_MS,
+    });
+  }
+
   return {
     provider: PROVIDER,
     capabilities: {
       sessionModelSwitch: "in-session",
-      ...(claudeSettings.idleCompactAfterMinutes
+      ...(idleCompactionFits
         ? {
             idleCompaction: {
-              idleMs: Number(claudeSettings.idleCompactAfterMinutes) * 60_000,
+              idleMs: idleCompactionMs,
               minTokens: Number(claudeSettings.idleCompactMinTokens || 0),
             },
           }
         : {}),
+      ...(idleSessionTimeoutMs !== undefined ? { idleSessionTimeoutMs } : {}),
     },
     compaction: { type: "slash-command", command: "/compact" },
     startSession,

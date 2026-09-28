@@ -13,8 +13,9 @@ import {
 } from "../Services/ProviderSessionReaper.ts";
 import { forkParked } from "../../serverActivation.ts";
 import { ProviderService } from "../Services/ProviderService.ts";
+import { DEFAULT_IDLE_SESSION_TIMEOUT_MS } from "../Services/ProviderAdapter.ts";
+import type { ProviderRuntimeBindingWithMetadata } from "../Services/ProviderSessionDirectory.ts";
 
-const DEFAULT_INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000;
 const DEFAULT_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface ProviderSessionReaperLiveOptions {
@@ -30,9 +31,21 @@ const makeProviderSessionReaper = (options?: ProviderSessionReaperLiveOptions) =
 
     const inactivityThresholdMs = Math.max(
       1,
-      options?.inactivityThresholdMs ?? DEFAULT_INACTIVITY_THRESHOLD_MS,
+      options?.inactivityThresholdMs ?? DEFAULT_IDLE_SESSION_TIMEOUT_MS,
     );
     const sweepIntervalMs = Math.max(1, options?.sweepIntervalMs ?? DEFAULT_SWEEP_INTERVAL_MS);
+
+    // Adapters may keep their sessions longer or shorter than the default.
+    // A binding whose instance is gone keeps the default.
+    const inactivityThresholdFor = (binding: ProviderRuntimeBindingWithMetadata) =>
+      binding.providerInstanceId === undefined
+        ? Effect.succeed(inactivityThresholdMs)
+        : providerService.getCapabilities(binding.providerInstanceId).pipe(
+            Effect.map(
+              (capabilities) => capabilities.idleSessionTimeoutMs ?? inactivityThresholdMs,
+            ),
+            Effect.orElseSucceed(() => inactivityThresholdMs),
+          );
 
     const sweep = Effect.gen(function* () {
       // Stopped rows stay for their resume cursors and far outnumber live
@@ -52,7 +65,8 @@ const makeProviderSessionReaper = (options?: ProviderSessionReaperLiveOptions) =
           continue;
         }
 
-        if (now - lastSeenMs < inactivityThresholdMs) {
+        const thresholdMs = yield* inactivityThresholdFor(binding);
+        if (now - lastSeenMs < thresholdMs) {
           continue;
         }
 
@@ -67,7 +81,7 @@ const makeProviderSessionReaper = (options?: ProviderSessionReaperLiveOptions) =
           Date.parse(thread?.session?.updatedAt ?? binding.lastSeenAt),
         );
         const idleDurationMs = now - lastActivityMs;
-        if (idleDurationMs < inactivityThresholdMs) {
+        if (idleDurationMs < thresholdMs) {
           continue;
         }
         if (thread?.session?.activeTurnId != null) {
