@@ -10,6 +10,11 @@ affiliated with or supported by the T3 Code maintainers.
   idle for** and **Idle compaction minimum**. A thread left idle is compacted
   while Claude's prompt cache is still warm. The next message then does not
   re-send the whole conversation uncached.
+- **Idle session stop time for Claude.** **Stop idle sessions after** changes
+  how long an idle Claude process stays alive before T3 Code stops it. Upstream
+  always uses 30 minutes. A longer time lets idle compaction use more of a
+  subscription's 1-hour cache, at the cost of a few hundred MB of memory per
+  idle process.
 - **Fork sync warning.** The app shows a warning when this fork falls behind
   upstream because the patches need a manual rebase.
 
