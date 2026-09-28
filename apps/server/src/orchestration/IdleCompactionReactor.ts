@@ -38,6 +38,11 @@ export class IdleCompactionReactor extends Context.Service<
 >()("t3/orchestration/IdleCompactionReactor") {}
 
 const SWEEP_INTERVAL = "30 seconds";
+// A sweep reaches a thread within one interval of it becoming due. A thread
+// found much later went due while the server was not sweeping, usually while
+// the computer slept. Wall-clock time kept running, so its prompt cache has
+// likely expired, and compacting now would re-read the history uncached.
+const MAX_LATENESS_MS = 2 * 60 * 1000;
 
 type IdleCompactionThread = Pick<
   OrchestrationThreadShell,
@@ -52,10 +57,12 @@ type IdleCompactionThread = Pick<
 >;
 
 /**
- * Whether a thread has sat idle long enough to compact, before reading its
- * context size. `compactedAt` is the latest user message time recorded when
- * this thread was last compacted here: the compaction's own `/compact`
- * message, so the thread stays skipped until the user sends something new.
+ * Whether a thread became due for compaction just now, before reading its
+ * context size. Threads past their due time by more than MAX_LATENESS_MS are
+ * left for the user to compact on return. `compactedAt` is the latest user
+ * message time recorded when this thread was last compacted here: the
+ * compaction's own `/compact` message, so the thread stays skipped until the
+ * user sends something new.
  */
 /** @internal Exported for tests. */
 export function isIdleCompactionCandidate(input: {
@@ -86,7 +93,9 @@ export function isIdleCompactionCandidate(input: {
     Date.parse(session.updatedAt),
     Date.parse(thread.latestTurn?.completedAt ?? ""),
   );
-  return !Number.isNaN(lastActivity) && input.now - lastActivity >= input.idleMs;
+  if (Number.isNaN(lastActivity)) return false;
+  const lateness = input.now - (lastActivity + input.idleMs);
+  return lateness >= 0 && lateness <= MAX_LATENESS_MS;
 }
 
 const make = Effect.gen(function* () {

@@ -152,7 +152,7 @@ const sweepAt = (minutesIdle: number) =>
   });
 
 describe("isIdleCompactionCandidate", () => {
-  const now = Date.parse(TURN_COMPLETED_AT) + 30 * MINUTE;
+  const now = Date.parse(TURN_COMPLETED_AT) + 25.5 * MINUTE;
   const candidate = (overrides: Partial<OrchestrationThreadShell>, compactedAt?: string): boolean =>
     IdleCompactionReactor.isIdleCompactionCandidate({
       thread: makeThread(overrides),
@@ -183,6 +183,20 @@ describe("isIdleCompactionCandidate", () => {
     assert.isFalse(candidate({ settledAt: TURN_COMPLETED_AT }));
   });
 
+  it("leaves a thread that went due while the server was not sweeping", () => {
+    const lateBy = (minutes: number) =>
+      IdleCompactionReactor.isIdleCompactionCandidate({
+        thread: makeThread(),
+        idleMs: IDLE.idleMs,
+        now: Date.parse(TURN_COMPLETED_AT) + IDLE.idleMs + minutes * MINUTE,
+        compactedAt: undefined,
+      });
+    assert.isTrue(lateBy(2));
+    // After the computer slept, the prompt cache has likely expired.
+    assert.isFalse(lateBy(2.5));
+    assert.isFalse(lateBy(120));
+  });
+
   it("skips a thread already compacted since its latest user message", () => {
     assert.isFalse(candidate({}, makeThread().latestUserMessageAt!));
   });
@@ -205,8 +219,17 @@ describe("IdleCompactionReactor", () => {
         assert.deepEqual(command.message.attachments, []);
       }
 
-      yield* sweepAt(60);
+      yield* sweepAt(25.5);
       assert.equal(harness.commands.length, 1);
+    }).pipe(Effect.provide(harness.layer));
+  });
+
+  it.effect("does not compact after the computer slept past the idle time", () => {
+    const harness = makeHarness({ usedTokens: 250_000 });
+    return Effect.gen(function* () {
+      yield* sweepAt(24);
+      yield* sweepAt(120);
+      assert.equal(harness.commands.length, 0);
     }).pipe(Effect.provide(harness.layer));
   });
 
