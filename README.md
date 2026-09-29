@@ -19,6 +19,9 @@ affiliated with or supported by the T3 Code maintainers.
   always uses 30 minutes. A longer time lets idle compaction use more of a
   subscription's 1-hour cache, at the cost of a few hundred MB of memory per
   idle process.
+- **Pinned messages.** Hover a message and select its pin button to pin it. A
+  pin count in the top left of the thread lists the pins and jumps to one.
+  Pins are saved in the app on this device only.
 - **Fork sync warning.** The app shows a warning when this fork falls behind
   upstream because the patches need a manual rebase.
 

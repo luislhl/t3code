@@ -167,9 +167,16 @@ upstream. It wires the reactor through `OrchestrationReactorLive` instead of
 Likewise, the warning starts from one line appended to `apps/web/src/main.tsx`
 instead of an edit inside the sidebar.
 
-Keeping a snoozed thread snoozed through idle compaction needs a small edit
-in `apps/server/src/orchestration/decider.ts`. Upstream changes that file
-often, so it is the most likely place for a rebase conflict.
+Two patches edit files upstream changes often, so they are the most likely
+places for a rebase conflict:
+
+- Keeping a snoozed thread snoozed through idle compaction edits
+  `apps/server/src/orchestration/decider.ts`.
+- Pinned messages add three short insertions to
+  `apps/web/src/components/chat/MessagesTimeline.tsx`: the pin button beside
+  the user and assistant copy buttons, and `<PinnedMessages>` beside
+  `<TimelineMinimap>`. Everything else lives in new files, so a conflict here
+  means putting those lines back.
 
 ## Limits
 
