@@ -85,6 +85,7 @@ import { TimelineSystemDivider } from "./TimelineSystemDivider";
 
 import { forwardWheelToTimeline } from "./timelineMinimapWheel";
 import { TimelineMinimap } from "./TimelineMinimap";
+import { PinnedMessages } from "./PinnedMessages";
 import {
   type TimelineRowSharedState,
   type TimelineRowActivityState,
@@ -1134,6 +1135,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 viewOffset: 24,
               });
             }}
+          />
+          <PinnedMessages
+            threadKey={routeThreadKey}
+            rows={rows}
+            hasEarlierMessages={loadEarlier !== null}
+            listRef={listRef}
+            onNavigate={onManualNavigation}
           />
         </TooltipScrollDismissArea>
       </TimelineRowActivityCtx>
