@@ -10,6 +10,10 @@ affiliated with or supported by the T3 Code maintainers.
   idle for** and **Idle compaction minimum**. A thread left idle is compacted
   while Claude's prompt cache is still warm. The next message then does not
   re-send the whole conversation uncached.
+  - If the computer sleeps past the compaction time, the thread is left alone,
+    because its cache has likely expired by then.
+  - Settled and archived threads are not compacted.
+  - A snoozed thread is compacted and stays snoozed.
 - **Idle session stop time for Claude.** **Stop idle sessions after** changes
   how long an idle Claude process stays alive before T3 Code stops it. Upstream
   always uses 30 minutes. A longer time lets idle compaction use more of a

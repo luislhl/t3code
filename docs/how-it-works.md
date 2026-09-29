@@ -167,6 +167,10 @@ upstream. It wires the reactor through `OrchestrationReactorLive` instead of
 Likewise, the warning starts from one line appended to `apps/web/src/main.tsx`
 instead of an edit inside the sidebar.
 
+Keeping a snoozed thread snoozed through idle compaction needs a small edit
+in `apps/server/src/orchestration/decider.ts`. Upstream changes that file
+often, so it is the most likely place for a rebase conflict.
+
 ## Limits
 
 - Linux x64 only. The other targets need signing certificates or other runners.
