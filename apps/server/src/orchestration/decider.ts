@@ -46,6 +46,7 @@ import {
 } from "./commandInvariants.ts";
 import { projectEvent } from "./projector.ts";
 import { threadHasQueuedTurnStart } from "./ThreadSettlementPolicy.ts";
+import { isIdleCompactionCommandId } from "./idleCompactionCommand.ts";
 
 const monogramSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
@@ -1500,7 +1501,8 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           },
         });
       }
-      if (targetThread.snoozedUntil != null) {
+      // Idle compaction is not the user re-engaging, so the snooze stays.
+      if (targetThread.snoozedUntil != null && !isIdleCompactionCommandId(command.commandId)) {
         lifecycleResetEvents.push({
           ...(yield* withEventBase({
             aggregateKind: "thread",

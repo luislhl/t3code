@@ -82,8 +82,9 @@ const makeHarness = (input: {
   readonly usedTokens: number;
   readonly capabilities?: ProviderAdapterCapabilities;
   readonly sessionStatus?: ProviderSession["status"];
+  readonly thread?: Partial<OrchestrationThreadShell>;
 }) => {
-  let thread = makeThread();
+  let thread = makeThread(input.thread);
   const commands: Array<OrchestrationCommand> = [];
   const session: ProviderSession = {
     provider: ProviderDriverKind.make("claudeAgent"),
@@ -141,7 +142,12 @@ const makeHarness = (input: {
       ),
     ),
   );
-  return { commands, layer };
+  const updateThread = (
+    update: (current: OrchestrationThreadShell) => OrchestrationThreadShell,
+  ) => {
+    thread = update(thread);
+  };
+  return { commands, layer, updateThread };
 };
 
 const sweepAt = (minutesIdle: number) =>
@@ -250,6 +256,63 @@ describe("IdleCompactionReactor", () => {
       yield* sweepAt(26);
       assert.equal(harness.commands.length, 0);
     }).pipe(Effect.provide(harness.layer));
+  });
+
+  describe("on a snoozed thread", () => {
+    const at = (minutes: number) =>
+      DateTime.formatIso(DateTime.makeUnsafe(Date.parse(TURN_COMPLETED_AT) + minutes * MINUTE));
+    const snoozed = { snoozedUntil: at(180), snoozedAt: at(1) };
+    // Mirrors the projection once the `/compact` turn completes.
+    const completeCompaction = (thread: OrchestrationThreadShell): OrchestrationThreadShell => ({
+      ...thread,
+      latestTurn: {
+        turnId: TurnId.make("compaction-turn"),
+        state: "completed",
+        requestedAt: thread.latestUserMessageAt!,
+        startedAt: thread.latestUserMessageAt!,
+        completedAt: at(26),
+        assistantMessageId: null,
+      },
+    });
+
+    it.effect("snoozes again after the compaction completes", () => {
+      const harness = makeHarness({ usedTokens: 250_000, thread: snoozed });
+      return Effect.gen(function* () {
+        yield* sweepAt(25);
+        assert.equal(harness.commands.length, 1);
+
+        // Still compacting.
+        yield* sweepAt(25.5);
+        assert.equal(harness.commands.length, 1);
+
+        harness.updateThread(completeCompaction);
+        yield* sweepAt(26.5);
+        assert.equal(harness.commands.length, 2);
+        const command = harness.commands[1];
+        assert.equal(command?.type, "thread.snooze");
+        if (command?.type === "thread.snooze") {
+          assert.equal(Date.parse(command.snoozedUntil), Date.parse(snoozed.snoozedUntil) + 1);
+        }
+
+        yield* sweepAt(27);
+        assert.equal(harness.commands.length, 2);
+      }).pipe(Effect.provide(harness.layer));
+    });
+
+    it.effect("leaves the thread awake after the user writes during the compaction", () => {
+      const harness = makeHarness({ usedTokens: 250_000, thread: snoozed });
+      return Effect.gen(function* () {
+        yield* sweepAt(25);
+        harness.updateThread((thread) => ({
+          ...completeCompaction(thread),
+          latestUserMessageAt: at(25.2),
+          snoozedUntil: null,
+          snoozedAt: null,
+        }));
+        yield* sweepAt(26.5);
+        assert.equal(harness.commands.length, 1);
+      }).pipe(Effect.provide(harness.layer));
+    });
   });
 
   it.effect("does not compact while the provider session is still working", () => {

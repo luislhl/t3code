@@ -57,6 +57,8 @@ subscription or `3` with an API key. Set **Idle compaction minimum**, such as
 `100000`, to skip threads that are still small. Idle compaction appears in the
 thread as a `/compact` message. If your computer sleeps through that time, T3 Code
 leaves the thread alone, since its cache has likely expired by the time it wakes.
+Settled and archived threads are not compacted. A snoozed thread is compacted and
+stays snoozed.
 
 T3 Code stops a Claude process after 30 minutes without activity to free its
 memory, a few hundred MB each. Change this with **Stop idle sessions after**. Idle

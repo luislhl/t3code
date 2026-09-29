@@ -1,6 +1,6 @@
 import {
-  CommandId,
   MessageId,
+  type OrchestrationEvent,
   type OrchestrationThreadShell,
   type ThreadId,
 } from "@t3tools/contracts";
@@ -15,10 +15,12 @@ import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import * as Schedule from "effect/Schedule";
 import type * as Scope from "effect/Scope";
+import * as Stream from "effect/Stream";
 
 import { ProjectionThreadActivityRepository } from "../persistence/Services/ProjectionThreadActivities.ts";
 import { ProviderService } from "../provider/Services/ProviderService.ts";
 import { forkParked } from "../serverActivation.ts";
+import { makeIdleCompactionCommandId } from "./idleCompactionCommand.ts";
 import * as OrchestrationEngine from "./Services/OrchestrationEngine.ts";
 import * as ProjectionSnapshotQuery from "./Services/ProjectionSnapshotQuery.ts";
 
@@ -107,6 +109,8 @@ const make = Effect.gen(function* () {
   // In memory on purpose: a server restart ends every provider session, and
   // only live sessions are compacted.
   const compactedAtByThread = new Map<ThreadId, string>();
+  // Snoozed threads being compacted, by the compaction's `/compact` time.
+  const snoozesToRestore = new Map<ThreadId, string>();
 
   /** The latest context size, unless the thread compacted after it. */
   const latestUsedTokens = Effect.fn("IdleCompactionReactor.latestUsedTokens")(function* (
@@ -147,7 +151,7 @@ const make = Effect.gen(function* () {
     // action sends, so messages sent meanwhile queue behind it.
     yield* engine.dispatch({
       type: "thread.turn.start",
-      commandId: CommandId.make(`server:idle-compaction:${yield* crypto.randomUUIDv4}`),
+      commandId: makeIdleCompactionCommandId(yield* crypto.randomUUIDv4),
       threadId,
       message: {
         messageId: MessageId.make(yield* crypto.randomUUIDv4),
@@ -160,10 +164,73 @@ const make = Effect.gen(function* () {
       createdAt,
     });
     compactedAtByThread.set(threadId, createdAt);
+    if (thread.snoozedUntil != null) snoozesToRestore.set(threadId, createdAt);
     yield* Effect.logInfo("thread.idle-compaction.requested", { threadId, usedTokens });
   });
 
+  /**
+   * Clients show a snoozed thread again when a turn completes after it was
+   * snoozed. Once the compaction turn completes, this snoozes the thread again
+   * so the snooze is newer than the compaction.
+   */
+  const restoreSnooze = Effect.fn("IdleCompactionReactor.restoreSnooze")(function* (
+    threadId: ThreadId,
+  ) {
+    const compactedAt = snoozesToRestore.get(threadId);
+    if (compactedAt === undefined) return;
+    const thread = Option.getOrUndefined(yield* snapshotQuery.getThreadShellById(threadId));
+    const turn = thread?.latestTurn;
+    // A newer user message already ended the snooze.
+    if (thread === undefined || thread.latestUserMessageAt !== compactedAt) {
+      snoozesToRestore.delete(threadId);
+      return;
+    }
+    const completedAt = Date.parse(turn?.completedAt ?? "");
+    // Still compacting.
+    if (
+      turn == null ||
+      Number.isNaN(completedAt) ||
+      Date.parse(turn.requestedAt) < Date.parse(compactedAt)
+    ) {
+      return;
+    }
+    snoozesToRestore.delete(threadId);
+    // Only a completed turn wakes a snoozed thread in clients.
+    if (turn.state !== "completed" || thread.snoozedUntil == null) return;
+    if (thread.snoozedAt != null && Date.parse(thread.snoozedAt) >= completedAt) return;
+    const wakeAt = Date.parse(thread.snoozedUntil);
+    if (!(wakeAt > (yield* Clock.currentTimeMillis))) return;
+    // Snoozing again to the same wake time counts as a duplicate and keeps
+    // the old snooze time. One millisecond later stamps a new one.
+    yield* engine.dispatch({
+      type: "thread.snooze",
+      commandId: makeIdleCompactionCommandId(yield* crypto.randomUUIDv4),
+      threadId,
+      snoozedUntil: DateTime.formatIso(DateTime.makeUnsafe(wakeAt + 1)),
+    });
+  });
+
+  const restoreSnoozeAfter = (event: OrchestrationEvent) => {
+    if (event.type !== "thread.session-set" && event.type !== "thread.turn-diff-completed") {
+      return Effect.void;
+    }
+    const threadId = event.payload.threadId;
+    if (!snoozesToRestore.has(threadId)) return Effect.void;
+    return restoreSnooze(threadId).pipe(
+      Effect.catchCause((cause) =>
+        Effect.logWarning("idle compaction snooze not restored", {
+          threadId,
+          cause: Cause.pretty(cause),
+        }),
+      ),
+    );
+  };
+
   const sweep = Effect.gen(function* () {
+    // Catches a completion whose event arrived before the projection showed it.
+    for (const threadId of snoozesToRestore.keys()) {
+      yield* restoreSnooze(threadId).pipe(Effect.catchCause(() => Effect.void));
+    }
     const sessions = yield* providerService.listSessions();
     const now = yield* Clock.currentTimeMillis;
     const liveThreadIds = new Set(sessions.map((session) => session.threadId));
@@ -191,7 +258,11 @@ const make = Effect.gen(function* () {
   });
 
   const start: IdleCompactionReactor["Service"]["start"] = () =>
-    forkParked(sweep.pipe(Effect.repeat(Schedule.spaced(SWEEP_INTERVAL)), Effect.asVoid));
+    Effect.gen(function* () {
+      const events = yield* engine.subscribeDomainEvents;
+      yield* forkParked(Stream.runForEach(events, restoreSnoozeAfter));
+      yield* forkParked(sweep.pipe(Effect.repeat(Schedule.spaced(SWEEP_INTERVAL)), Effect.asVoid));
+    });
 
   return { start, sweep } satisfies IdleCompactionReactor["Service"];
 });
