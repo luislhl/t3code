@@ -165,6 +165,7 @@ import {
   timelineContentOverflowsViewport,
 } from "./timelineScrollAnchoring";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { PinMessageButton, PinnedMessages } from "./PinnedMessages";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { inferEntryKindFromPath } from "../../pierre-icons";
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
@@ -1359,6 +1360,13 @@ export const MessagesTimeline = memo(function MessagesTimeline({
               });
             }}
           />
+          <PinnedMessages
+            threadKey={routeThreadKey}
+            rows={rows}
+            hasEarlierMessages={loadEarlier !== null}
+            listRef={listRef}
+            onNavigate={onManualNavigation}
+          />
         </div>
       </TimelineRowActivityCtx>
     </TimelineRowCtx>
@@ -2256,6 +2264,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                 variant="ghost"
               />
             )}
+            <PinMessageButton threadKey={ctx.routeThreadKey} message={row.message} />
           </div>
         </div>
       </div>
@@ -2473,6 +2482,7 @@ function AssistantMessageMeta({
         showCopyButton={showCopyButton}
         streaming={copyStreaming}
       />
+      {!message.streaming && <PinMessageButton threadKey={ctx.routeThreadKey} message={message} />}
       {!message.streaming && (
         <Tooltip>
           <TooltipTrigger render={<p className="text-muted-foreground text-xs tabular-nums" />}>
