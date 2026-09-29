@@ -52,6 +52,7 @@ import {
 } from "./SnapShotAttachmentDetails";
 import { GuestMessageName, guestBubbleClassName } from "./guestMessageStyle";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { PinMessageButton } from "./PinnedMessages";
 import { promptLinkFor } from "../promptLinks/copyPromptLink";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { shouldCollapseUserMessage } from "./MessagesTimeline.logic";
@@ -685,6 +686,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                   variant="ghost"
                 />
               )}
+              <PinMessageButton threadKey={ctx.routeThreadKey} message={row.message} />
             </div>
           </div>
         </div>
