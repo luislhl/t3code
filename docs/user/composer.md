@@ -149,6 +149,17 @@ if a short passage appears too often. Tap a quote in a draft to add
 or edit its comment, or to remove it. To open the source message, tap a quote in
 a draft or sent message, then choose **Go to message**.
 
+## Pin messages
+
+On web and desktop, hover a message and select the pin button beside **Copy
+message** to pin it. Once a thread has pins, a pin button with their count
+appears in the top left of the thread. Choose a pinned message there to jump to
+it, or remove it with its close button.
+
+Pins are saved in this browser or desktop app only. They do not sync to other
+devices. In a long thread, a pin to a message that is not loaded yet is shown
+dimmed; scroll up to load earlier messages, then jump to it.
+
 ## Recall a sent prompt
 
 Press `ArrowUp` in an empty composer to bring back the last prompt you sent in this thread. Press
