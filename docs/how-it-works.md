@@ -167,7 +167,7 @@ upstream. It wires the reactor through `OrchestrationReactorLive` instead of
 Likewise, the warning starts from one line appended to `apps/web/src/main.tsx`
 instead of an edit inside the sidebar.
 
-Two patches edit files upstream changes often, so they are the most likely
+These patches edit files upstream changes often, so they are the most likely
 places for a rebase conflict:
 
 - Keeping a snoozed thread snoozed through idle compaction edits
@@ -177,6 +177,9 @@ places for a rebase conflict:
   the user and assistant copy buttons, and `<PinnedMessages>` beside
   `<TimelineMinimap>`. Everything else lives in new files, so a conflict here
   means putting those lines back.
+- Thread notes add an import and one `<ThreadNotesButton>` line to
+  `apps/web/src/components/chat/ChatHeader.tsx`, just before the header's
+  actions menu. The notepad itself lives in new files.
 
 ## Limits
 
