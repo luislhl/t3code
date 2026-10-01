@@ -100,6 +100,15 @@ Pins are saved in this browser or desktop app only. They do not sync to other
 devices. In a long thread, a pin to a message that is not loaded yet is shown
 dimmed; scroll up to load earlier messages, then jump to it.
 
+## Thread notes
+
+On web and desktop, use the notepad button in the thread's top bar to keep
+plain-text notes for that thread. Notes save as you type. While a thread has
+notes, the button is highlighted and its tooltip shows the first line.
+
+Like pins, notes are saved in this browser or desktop app only and do not sync
+to other devices. Clear the text to remove a thread's notes.
+
 ## Recall a sent prompt
 
 Press `ArrowUp` in an empty composer to bring back the last prompt you sent in this thread. Press
