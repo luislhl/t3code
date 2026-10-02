@@ -13,9 +13,21 @@ import { createDeferredStorage } from "./lib/storage";
 const THREAD_NOTES_STORAGE_KEY = "t3code:thread-notes:v1";
 const THREAD_NOTES_PERSIST_DEBOUNCE_MS = 500;
 
+export type ThreadNotesMode = "edit" | "preview";
+
+export interface ThreadNotesSize {
+  readonly width: number;
+  readonly height: number;
+}
+
 interface ThreadNotesStoreState {
   notesByThreadKey: Record<string, string>;
+  /** The notepad's last mode and size, shared by every thread. */
+  mode: ThreadNotesMode;
+  size: ThreadNotesSize | null;
   setThreadNote: (threadKey: string, note: string) => void;
+  setMode: (mode: ThreadNotesMode) => void;
+  setSize: (size: ThreadNotesSize) => void;
 }
 
 // Notes change on every keystroke; write them once typing pauses.
@@ -35,6 +47,8 @@ export const useThreadNotesStore = create<ThreadNotesStoreState>()(
   persist(
     (set) => ({
       notesByThreadKey: {},
+      mode: "edit",
+      size: null,
       setThreadNote: (threadKey, note) =>
         set((state) => {
           if ((state.notesByThreadKey[threadKey] ?? "") === note) return state;
@@ -44,12 +58,18 @@ export const useThreadNotesStore = create<ThreadNotesStoreState>()(
             notesByThreadKey: note.trim() === "" ? rest : { ...rest, [threadKey]: note },
           };
         }),
+      setMode: (mode) => set({ mode }),
+      setSize: (size) => set({ size }),
     }),
     {
       name: THREAD_NOTES_STORAGE_KEY,
       version: 1,
       storage: createJSONStorage(() => threadNotesStorage),
-      partialize: (state) => ({ notesByThreadKey: state.notesByThreadKey }),
+      partialize: (state) => ({
+        notesByThreadKey: state.notesByThreadKey,
+        mode: state.mode,
+        size: state.size,
+      }),
     },
   ),
 );
