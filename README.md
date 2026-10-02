@@ -23,8 +23,9 @@ affiliated with or supported by the T3 Code maintainers.
   pin count in the top left of the thread lists the pins and jumps to one.
   Pins are saved in the app on this device only.
 - **Thread notes.** The notepad button in a thread's top bar keeps a
-  plain-text note for that thread. The button is highlighted while the thread
-  has a note. Notes are saved in the app on this device only.
+  plain-text note for that thread, with a Markdown preview and a resizable
+  box. The button is highlighted while the thread has a note. Notes are saved
+  in the app on this device only.
 - **Fork sync warning.** The app shows a warning when this fork falls behind
   upstream because the patches need a manual rebase.
 
