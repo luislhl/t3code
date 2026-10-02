@@ -106,6 +106,10 @@ On web and desktop, use the notepad button in the thread's top bar to keep
 plain-text notes for that thread. Notes save as you type. While a thread has
 notes, the button is highlighted and its tooltip shows the first line.
 
+Choose **Preview** to read Markdown you pasted from a response formatted, and
+**Edit** to change it. Drag the grip in the bottom-left corner to make the
+notepad larger. It keeps that size and mode the next time you open it.
+
 Like pins, notes are saved in this browser or desktop app only and do not sync
 to other devices. Clear the text to remove a thread's notes.
 
