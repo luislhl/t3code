@@ -190,6 +190,13 @@ describe("idleCompactionWindow", () => {
     };
     expect(idleCompactionWindow(sideChat, NOW_MS)).toBeNull();
   });
+
+  it("compacts smaller contexts when the instance lowers the threshold", () => {
+    const small = records({ cacheExpiresInMs: 60 * MINUTE_MS, usedTokens: 150_000 });
+    expect(idleCompactionWindow(small, NOW_MS)).toBeNull();
+    expect(idleCompactionWindow(small, NOW_MS, 100_000)).toMatchObject({ runId });
+    expect(idleCompactionWindow(small, NOW_MS, 150_001)).toBeNull();
+  });
 });
 
 describe("IdleCompactionService", () => {
