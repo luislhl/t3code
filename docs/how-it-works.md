@@ -138,7 +138,7 @@ git rebase --onto v0.0.43 v0.0.42
 vp install
 # Run the typecheck and changed tests of each patched package, the same
 # checks as the workflow. For example:
-(cd apps/server && vp run typecheck && vp test run src/orchestration/IdleCompactionReactor.test.ts)
+(cd apps/server && vp run typecheck && vp test run src/orchestration-v2/IdleCompaction.test.ts)
 
 git push --force-with-lease fork fork/patches
 gh workflow run fork-sync.yml -R luislhl/t3code --ref fork/ci
@@ -161,22 +161,25 @@ patches use. Fix it in the patch commit, for example with
   conflicts. Drop the commit with `git rebase --onto` or by rewriting
   `fork/patches`.
 
-The idle compaction patch here differs slightly from the version proposed
-upstream. It wires the reactor through `OrchestrationReactorLive` instead of
-`apps/server/src/server.ts`, because upstream edits that file constantly.
-Likewise, the warning starts from one line appended to `apps/web/src/main.tsx`
-instead of an edit inside the sidebar.
+The fork sync warning starts from one line appended to `apps/web/src/main.tsx`
+instead of an edit inside the sidebar, because upstream edits the sidebar
+constantly.
 
 These patches edit files upstream changes often, so they are the most likely
 places for a rebase conflict:
 
-- Keeping a snoozed thread snoozed through idle compaction edits
-  `apps/server/src/orchestration/decider.ts`.
-- Pinned messages add three short insertions to
-  `apps/web/src/components/chat/MessagesTimeline.tsx`: the pin button beside
-  the user and assistant copy buttons, and `<PinnedMessages>` beside
-  `<TimelineMinimap>`. Everything else lives in new files, so a conflict here
-  means putting those lines back.
+- The idle compaction minimum adds one field to `ClaudeSettings` in
+  `packages/contracts/src/settings.ts`, right after upstream's
+  `idleCompaction`, and passes the threshold from
+  `apps/server/src/orchestration-v2/IdleCompactionService.ts` to
+  `idleCompactionWindow`. Upstream is still iterating on idle compaction, so
+  check whether it has made the threshold configurable before resolving a
+  conflict here.
+- Pinned messages add `<PinnedMessages>` beside `<TimelineMinimap>` in
+  `apps/web/src/components/chat/MessagesTimeline.tsx`, and a pin button beside
+  the copy buttons in `TimelineUserMessageRow.tsx` and
+  `TimelineAssistantRows.tsx` in the same directory. Everything else lives in
+  new files, so a conflict here means putting those lines back.
 - Thread notes add an import and one `<ThreadNotesButton>` line to
   `apps/web/src/components/chat/ChatHeader.tsx`, just before the header's
   actions menu. The notepad itself lives in new files.

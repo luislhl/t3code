@@ -6,19 +6,10 @@ affiliated with or supported by the T3 Code maintainers.
 
 ## What it adds
 
-- **Idle compaction for Claude.** Claude provider settings get **Compact when
-  idle for** and **Idle compaction minimum**. A thread left idle is compacted
-  while Claude's prompt cache is still warm. The next message then does not
-  re-send the whole conversation uncached.
-  - If the computer sleeps past the compaction time, the thread is left alone,
-    because its cache has likely expired by then.
-  - Settled and archived threads are not compacted.
-  - A snoozed thread is compacted and stays snoozed.
-- **Idle session stop time for Claude.** **Stop idle sessions after** changes
-  how long an idle Claude process stays alive before T3 Code stops it. Upstream
-  always uses 30 minutes. A longer time lets idle compaction use more of a
-  subscription's 1-hour cache, at the cost of a few hundred MB of memory per
-  idle process.
+- **Idle compaction minimum for Claude.** Upstream's **Before the cache
+  expires (beta)** idle compaction only compacts threads over 200,000 tokens.
+  **Idle compaction minimum** in a Claude provider's settings changes that
+  threshold, from 1,000 to 1,000,000 tokens.
 - **Pinned messages.** Hover a message and select its pin button to pin it. A
   pin count in the top left of the thread lists the pins and jumps to one.
   Pins are saved in the app on this device only.
