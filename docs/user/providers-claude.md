@@ -138,3 +138,11 @@ config directory and put the router's endpoint and credential variables in that
 instance's **Environment variables**. The router must run where the environment
 can reach it. Follow the [Claude Code Router instructions](https://github.com/musistudio/claude-code-router)
 for its installation and routing configuration.
+
+## Idle compaction options
+
+These notes apply to **Before the cache expires (beta)** in
+[Compact long conversations](#compact-long-conversations):
+
+- **Idle compaction minimum** in a Claude provider's settings changes its
+  200,000-token threshold.

@@ -17,6 +17,7 @@ import {
   PROJECT_SCOPED_SERVER_SETTING_KEYS,
   requiredScopesForProjectMutation,
   resolveIdleCompaction,
+  resolveIdleCompactMinTokens,
   resolveProjectProviderInstanceEnabled,
   resolveProviderInstanceEnabled,
   ServerSettings,
@@ -249,6 +250,37 @@ describe("custom model settings", () => {
       "bare-slug",
       { slug: "named", name: "Named", capabilities },
     ]);
+  });
+});
+
+describe("resolveIdleCompactMinTokens", () => {
+  it("reads a Claude instance's threshold and leaves the rest to the default", () => {
+    const settings = decodeServerSettings({
+      providerInstances: {
+        claude_work: { driver: "claudeAgent", config: { idleCompactMinTokens: "100000" } },
+        claude_personal: { driver: "claudeAgent" },
+      },
+    });
+    expect(resolveIdleCompactMinTokens(settings, ProviderInstanceId.make("claude_work"))).toBe(
+      100_000,
+    );
+    expect(
+      resolveIdleCompactMinTokens(settings, ProviderInstanceId.make("claude_personal")),
+    ).toBeUndefined();
+    expect(
+      resolveIdleCompactMinTokens(settings, ProviderInstanceId.make("claudeAgent")),
+    ).toBeUndefined();
+  });
+
+  it("accepts 1,000 to 1,000,000 tokens", () => {
+    for (const value of ["", "1000", "100000", "1000000"]) {
+      expect(decodeClaudeSettings({ idleCompactMinTokens: value }).idleCompactMinTokens).toBe(
+        value,
+      );
+    }
+    for (const value of ["999", "1000001", "0", "abc"]) {
+      expect(() => decodeClaudeSettings({ idleCompactMinTokens: value })).toThrow();
+    }
   });
 });
 
