@@ -681,6 +681,8 @@ export const CodexSettings = makeProviderSettingsSchema(
 export type CodexSettings = typeof CodexSettings.Type;
 
 const CLAUDE_AUTO_COMPACT_WINDOW_PATTERN = /^(?:|[1-9]\d{5}|1000000)$/;
+// Empty, or an integer from 1,000 to 1,000,000.
+const CLAUDE_IDLE_COMPACT_MIN_TOKENS_PATTERN = /^(?:|[1-9]\d{3,5}|1000000)$/;
 
 export const IDLE_COMPACTION_MODES = [
   { value: "onReturn", label: "When you return" },
@@ -766,9 +768,30 @@ export const ClaudeSettings = makeProviderSettingsSchema(
         },
       }),
     ),
+    idleCompactMinTokens: TrimmedString.check(
+      Schema.isPattern(CLAUDE_IDLE_COMPACT_MIN_TOKENS_PATTERN),
+    ).pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Idle compaction minimum",
+        description:
+          "Compact idle threads before the cache expires only from this many tokens (1,000 to 1,000,000). Leave empty for 200,000.",
+        providerSettingsForm: {
+          placeholder: "e.g. 100000",
+          clearWhenEmpty: "omit",
+        },
+      }),
+    ),
   },
   {
-    order: ["binaryPath", "homePath", "autoCompactWindow", "idleCompaction", "launchArgs"],
+    order: [
+      "binaryPath",
+      "homePath",
+      "autoCompactWindow",
+      "idleCompaction",
+      "idleCompactMinTokens",
+      "launchArgs",
+    ],
   },
 );
 export type ClaudeSettings = typeof ClaudeSettings.Type;
@@ -1429,6 +1452,22 @@ export const resolveIdleCompaction = (
     Option.getOrElse(() => "default" as const),
   );
   return override === "default" ? globalIdleCompaction(settings) : override;
+};
+
+/** The instance's idle compaction token threshold, or undefined for the default. */
+export const resolveIdleCompactMinTokens = (
+  settings: Pick<ServerSettings, "providerInstances">,
+  instanceId: ProviderInstanceId,
+): number | undefined => {
+  const instance = Object.hasOwn(settings.providerInstances, instanceId)
+    ? settings.providerInstances[instanceId]
+    : undefined;
+  return decodeClaudeSettings(instance?.config ?? {}).pipe(
+    Option.map((config) => config.idleCompactMinTokens),
+    Option.filter((value) => value !== ""),
+    Option.map(Number),
+    Option.getOrUndefined,
+  );
 };
 
 export const ServerSettingsOperation = Schema.Literals([

@@ -27,7 +27,7 @@ export type IdleCompactionRecords = Pick<
  * When an idle Claude thread should compact, or null when it should not. The
  * window ends when the prompt cache of Claude's last request expires (1h on
  * subscriptions, 5m on API keys); compacting after that pays a full uncached
- * read.
+ * read. `minTokens` is the provider instance's override of the size threshold.
  */
 export function idleCompactionWindow(
   {
@@ -41,6 +41,7 @@ export function idleCompactionWindow(
     contextTransfers,
   }: IdleCompactionRecords,
   nowMs: number,
+  minTokens: number = MIN_CONTEXT_TOKENS,
 ): {
   readonly runId: (typeof runs)[number]["id"];
   readonly startMs: number;
@@ -93,7 +94,7 @@ export function idleCompactionWindow(
     .filter((turn) => turn.providerThreadId === providerThread.id && turn.tokenUsage !== undefined)
     .map((turn) => turn.tokenUsage!)
     .toSorted((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
-  if ((usages[0]?.usedTokens ?? 0) < MIN_CONTEXT_TOKENS) return null;
+  if ((usages[0]?.usedTokens ?? 0) < minTokens) return null;
   // A request served fully from cache creates no cache entry and reports no
   // TTL, but it still refreshes the cache. Treat it as unknown and skip.
   const expiresAt = usages[0]?.promptCacheExpiresAt;

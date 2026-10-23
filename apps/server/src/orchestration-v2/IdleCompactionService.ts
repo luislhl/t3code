@@ -3,6 +3,7 @@ import {
   IDLE_COMPACTION_TEXT,
   MessageId,
   resolveIdleCompaction,
+  resolveIdleCompactMinTokens,
   resolveProjectProviderInstanceEnabled,
   type RunId,
   type ThreadId,
@@ -59,7 +60,11 @@ export const make = Effect.gen(function* () {
         )
           return;
         const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
-        const window = idleCompactionWindow(records, nowMs);
+        const window = idleCompactionWindow(
+          records,
+          nowMs,
+          resolveIdleCompactMinTokens(current, records.thread.providerInstanceId),
+        );
         if (window?.runId !== runId) return;
         if (nowMs < window.startMs) {
           yield* Effect.sleep(Duration.millis(window.startMs - nowMs));
