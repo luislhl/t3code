@@ -45,6 +45,7 @@ import {
   readThreadShells,
 } from "../state/entities";
 import { useUiStateStore } from "../uiStateStore";
+import { confirmSettlingThreadWithNote } from "../threadNotesStore";
 import { clearThreadPreviewState } from "../previewStateStore";
 import { useTerminalUiStateStore } from "../terminalUiStateStore";
 import { buildThreadRouteParams, resolveThreadRouteRef } from "../threadRoutes";
@@ -733,6 +734,17 @@ export function useThreadActions() {
       );
     }
     const resolved = resolveThreadTarget(target);
+    const localApi = readLocalApi();
+    const confirmed = await settlePromise(() =>
+      confirmSettlingThreadWithNote(
+        scopedThreadKey(target),
+        resolved?.thread.title ?? null,
+        localApi ? (message) => localApi.dialogs.confirm(message) : null,
+      ),
+    );
+    if (confirmed._tag === "Failure") return confirmed;
+    // Callers treat an interrupt as a quiet cancel: no error toast, no navigation.
+    if (!confirmed.value) return AsyncResult.failure(Cause.interrupt());
     // oxlint-disable-next-line react/purity -- runs in an event handler (oxc#27309)
     const nowIso = new Date().toISOString();
     const wokeAt = resolved ? threadWokeAt(resolved.thread, { now: nowIso }) : null;

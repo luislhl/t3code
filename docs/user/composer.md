@@ -157,6 +157,10 @@ notepad larger. It keeps that size and mode the next time you open it.
 Like pins, notes are saved in this browser or desktop app only and do not sync
 to other devices. Clear the text to remove a thread's notes.
 
+Settling a thread keeps its notes. To help you remember them, settling a thread
+that has notes asks you to confirm first. Auto-settle runs on the server, which
+can't see your notes, so it settles without asking.
+
 ## Recall a sent prompt
 
 Press `ArrowUp` in an empty composer to bring back the last prompt you sent in this thread. Press
