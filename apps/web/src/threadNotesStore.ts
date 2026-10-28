@@ -82,3 +82,18 @@ export function flushThreadNotes() {
 export function useThreadNote(threadKey: string) {
   return useThreadNotesStore((state) => state.notesByThreadKey[threadKey] ?? "");
 }
+
+/**
+ * Asks before settling a thread that has a note, so the note isn't forgotten
+ * once the thread leaves the active list. Resolves true when settling should
+ * go ahead, including when no confirm dialog is available.
+ */
+export async function confirmSettlingThreadWithNote(
+  threadKey: string,
+  title: string | null,
+  confirm: ((message: string) => Promise<boolean>) | null,
+): Promise<boolean> {
+  if (confirm === null) return true;
+  if (useThreadNotesStore.getState().notesByThreadKey[threadKey] === undefined) return true;
+  return confirm(`${title ? `"${title}"` : "This thread"} has notes. Settle it anyway?`);
+}
