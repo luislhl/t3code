@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { useThreadNotesStore } from "./threadNotesStore";
+import { confirmSettlingThreadWithNote, useThreadNotesStore } from "./threadNotesStore";
 
 const THREAD = "environment-a:thread-1";
 const OTHER_THREAD = "environment-a:thread-2";
@@ -33,5 +33,28 @@ describe("threadNotesStore", () => {
 
     setNote(OTHER_THREAD, "");
     expect(useThreadNotesStore.getState().notesByThreadKey).toEqual({});
+  });
+});
+
+describe("confirmSettlingThreadWithNote", () => {
+  beforeEach(() => {
+    useThreadNotesStore.setState({ notesByThreadKey: {} });
+  });
+
+  it("settles a thread without a note without asking", async () => {
+    const confirm = vi.fn(async () => false);
+    await expect(confirmSettlingThreadWithNote(THREAD, "Fix login", confirm)).resolves.toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("asks before settling a thread with a note and follows the answer", async () => {
+    setNote(THREAD, "remember the flaky test");
+    const confirm = vi.fn(async () => false);
+    await expect(confirmSettlingThreadWithNote(THREAD, "Fix login", confirm)).resolves.toBe(false);
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('"Fix login" has notes. Settle it anyway?');
+
+    confirm.mockResolvedValue(true);
+    await expect(confirmSettlingThreadWithNote(THREAD, null, confirm)).resolves.toBe(true);
+    expect(confirm).toHaveBeenLastCalledWith("This thread has notes. Settle it anyway?");
   });
 });

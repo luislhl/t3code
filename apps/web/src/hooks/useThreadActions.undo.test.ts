@@ -6,6 +6,9 @@ import { useThreadActions } from "./useThreadActions";
 import { threadEnvironment } from "../state/threads";
 import { toastManager } from "../components/ui/toast";
 import { useThreadUndoNotice } from "./showThreadUndoNotice";
+import { useThreadNotesStore } from "../threadNotesStore";
+import { isAtomCommandInterrupted } from "@t3tools/client-runtime/state/runtime";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 
 const commands = vi.hoisted(() => ({
   pin: vi.fn(),
@@ -34,6 +37,11 @@ vi.mock("react", async (original) => ({
   useRef: (value: unknown) => ({ current: value }),
 }));
 vi.mock("@tanstack/react-router", () => ({ useRouter: () => router }));
+const confirmDialog = vi.hoisted(() => vi.fn(async (_message: string) => true));
+vi.mock("../localApi", async (original) => ({
+  ...(await original<typeof import("../localApi")>()),
+  readLocalApi: () => ({ dialogs: { confirm: confirmDialog } }),
+}));
 vi.mock("./useSettings", () => ({ useClientSettings: () => false }));
 vi.mock("./useHandleNewThread", () => ({
   useNewThreadHandler: () => async () => {
@@ -366,4 +374,28 @@ describe("archive and delete Undo expiry", () => {
       expect(commands.unarchive).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("settling a thread with notes", () => {
+  afterEach(() => {
+    useThreadNotesStore.setState({ notesByThreadKey: {} });
+  });
+
+  it("keeps the thread active when the user cancels", async () => {
+    useThreadUndoNotice.setState({ notice: null });
+    useThreadNotesStore.getState().setThreadNote(scopedThreadKey(target), "todo");
+    confirmDialog.mockResolvedValueOnce(false);
+    const result = await useThreadActions().settleThread(target);
+    expect(isAtomCommandInterrupted(result)).toBe(true);
+    expect(commands.settle).not.toHaveBeenCalled();
+    expect(useThreadUndoNotice.getState().notice).toBeNull();
+  });
+
+  it("settles once the user confirms", async () => {
+    useThreadNotesStore.getState().setThreadNote(scopedThreadKey(target), "todo");
+    confirmDialog.mockResolvedValueOnce(true);
+    await useThreadActions().settleThread(target);
+    expect(confirmDialog).toHaveBeenCalledOnce();
+    expect(commands.settle).toHaveBeenCalledOnce();
+  });
 });
