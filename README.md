@@ -6,10 +6,11 @@ affiliated with or supported by the T3 Code maintainers.
 
 ## What it adds
 
-- **Idle compaction minimum for Claude.** Upstream's **Before the cache
-  expires (beta)** idle compaction only compacts threads over 200,000 tokens.
-  **Idle compaction minimum** in a Claude provider's settings changes that
-  threshold, from 1,000 to 1,000,000 tokens.
+- **Idle compaction for Claude.** Upstream's **Before the cache expires (beta)**
+  idle compaction only compacts threads over 200,000 tokens, and skips snoozed
+  threads. **Idle compaction minimum** in a Claude provider's settings changes
+  that threshold, from 1,000 to 1,000,000 tokens. Snoozed threads are compacted
+  too, and stay snoozed.
 - **Pinned messages.** Hover a message and select its pin button to pin it. A
   pin count in the top left of the thread lists the pins and jumps to one.
   Pins are saved in the app on this device only.
