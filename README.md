@@ -15,8 +15,9 @@ affiliated with or supported by the T3 Code maintainers.
   Pins are saved in the app on this device only.
 - **Thread notes.** The notepad button in a thread's top bar keeps a
   plain-text note for that thread, with a Markdown preview and a resizable
-  box. The button is highlighted while the thread has a note. Notes are saved
-  in the app on this device only.
+  box. The button is highlighted while the thread has a note, and settling a
+  thread with a note asks you to confirm first. Notes are saved in the app on
+  this device only.
 - **Fork sync warning.** The app shows a warning when this fork falls behind
   upstream because the patches need a manual rebase.
 
