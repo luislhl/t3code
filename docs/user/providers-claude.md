@@ -146,3 +146,4 @@ These notes apply to **Before the cache expires (beta)** in
 
 - **Idle compaction minimum** in a Claude provider's settings changes its
   200,000-token threshold.
+- Snoozed threads are compacted too, and stay snoozed.

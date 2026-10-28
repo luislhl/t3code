@@ -7657,7 +7657,7 @@ it.layer(layerTest)("snooze queued runs", (it) => {
       }),
   );
 
-  it.effect.each(["notification", "user"] as const)(
+  it.effect.each(["notification", "idle compaction", "user"] as const)(
     "a %s message on a snoozed thread keeps the snooze only when automatic",
     (kind) =>
       Effect.gen(function* () {
@@ -7704,6 +7704,7 @@ it.layer(layerTest)("snooze queued runs", (it) => {
                 },
               }
             : {}),
+          ...(kind === "idle compaction" ? { idleCompaction: "beforeCacheExpires" as const } : {}),
         });
         const thread = (yield* orchestrator.getThreadProjection(threadId)).thread;
         if (kind === "user") {
