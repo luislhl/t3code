@@ -154,6 +154,12 @@ describe("idleCompactionWindow", () => {
     expect(idleCompactionWindow(archived, NOW_MS)).toBeNull();
   });
 
+  it("compacts snoozed threads, which the user means to come back to", () => {
+    const snoozed = records({ cacheExpiresInMs: 60 * MINUTE_MS });
+    snoozed.thread = { ...snoozed.thread, snoozedUntil: at(3 * 60 * MINUTE_MS), snoozedAt: at() };
+    expect(idleCompactionWindow(snoozed, NOW_MS)).toMatchObject({ runId });
+  });
+
   it("compacts smaller contexts when the instance lowers the threshold", () => {
     const small = records({ cacheExpiresInMs: 60 * MINUTE_MS, usedTokens: 150_000 });
     expect(idleCompactionWindow(small, NOW_MS)).toBeNull();

@@ -1,7 +1,6 @@
 import type { OrchestrationV2ThreadProjection } from "@t3tools/contracts";
 import { COMPACTION_SUGGESTION_MIN_TOKENS } from "@t3tools/shared/claudeCompaction";
 import { derivePendingBackgroundWork } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
-import * as DateTime from "effect/DateTime";
 
 // Claude Code's idleCompaction defaults to 200K and won't go below 100K. Below
 // that a cold re-read is cheap, so compacting mostly loses context for little
@@ -49,8 +48,6 @@ export function idleCompactionWindow(
 } | null {
   if (thread.deletedAt !== null || thread.archivedAt !== null) return null;
   if (thread.settledAt !== null || thread.settledOverride === "settled") return null;
-  if (thread.snoozedUntil != null && DateTime.toEpochMillis(thread.snoozedUntil) > nowMs)
-    return null;
   if (thread.lineage.relationshipToParent === "subagent") return null;
   const latestRun = runs.reduce<(typeof runs)[number] | null>(
     (latest, run) => (latest === null || run.ordinal > latest.ordinal ? run : latest),

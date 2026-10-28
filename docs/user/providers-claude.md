@@ -64,6 +64,7 @@ over 200,000 tokens. Each Claude provider's settings can override it:
 - **Before the cache expires (beta)** compacts an idle thread shortly before its
   prompt cache expires, so coming back does not reprocess the whole conversation.
   The compaction appears in the thread as a `/compact` turn sent by T3 Code.
+  Snoozed threads are compacted too, and stay snoozed.
   **Idle compaction minimum** in a Claude provider's settings changes the
   200,000-token threshold for this option.
 - **Never** skips idle compaction and Claude's resume prompt. **Auto-compact after**
